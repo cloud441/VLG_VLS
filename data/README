@@ -1,0 +1,4 @@
+# README of graph file directory
+
+--> Graph file aren't store in the git because the objective is to manager very large graph.
+    You need to add graph file by your own.

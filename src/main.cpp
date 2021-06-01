@@ -1,16 +1,14 @@
 #include <cstdio>
 #include <igraph.h>
 
+#include "options.hpp"
+#include "graph_manager.hpp"
 
 
 int main(int argc, char **argv)
 {
-    if (argc < 1)
-    {
-        perror("Error: not enough argument to main.");
-        return 1;
-    }
-
+    Option::OptionParser op_parser(argc, argv);
+    Graph::graph *g = new Graph::graph(op_parser.get_filename());
 
     return 0;
 }
