@@ -16,6 +16,7 @@ namespace Graph
         public:
             graph(std::string filename);
 
+            void flush();
 
             void set_n(int n);
             void set_m(int m);
@@ -104,3 +105,5 @@ namespace Graph
 /**
  ** Utilities functions:
  **/
+
+
