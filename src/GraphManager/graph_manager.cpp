@@ -3,7 +3,52 @@
 namespace Graph
 {
 
-    graph::graph(std::string filename)
+    GraphManager::GraphManager()
+    {
+        this->graph = (igraph_t *)malloc(sizeof(igraph_t));
+        if (!(this->graph))
+        {
+            std::cerr << "Error: malloc can't allocate graph object" << std::endl;
+            exit(1);
+        }
+
+        this->edges = (igraph_vector_t *)malloc(sizeof(igraph_vector_t));
+        if (!(this->edges))
+        {
+            std::cerr << "Error: malloc can't allocate edges object" << std::endl;
+            exit(1);
+        }
+    }
+
+
+    GraphManager::~GraphManager()
+    {
+        free(this->graph);
+        free(this->edges);
+    }
+
+
+    igraph_t *GraphManager::extract_subgraph(int first_vertice, int last_vertices)
+    {
+        igraph_integer_t from = first_vertice;
+        igraph_integer_t to = last_vertices;
+        igraph_vs_t vs;
+
+        igraph_vs_seq(&vs, from, to);
+
+        igraph_t *sub_g = (igraph_t *)malloc(sizeof(igraph_t));
+        if (!sub_g)
+        {
+            std::cerr << "Error: malloc failed to allocate sub graph space" << std::endl;
+            exit(1);
+        }
+
+        igraph_induced_subgraph(this->graph, sub_g, vs, IGRAPH_SUBGRAPH_COPY_AND_DELETE);
+        return sub_g;
+    }
+
+
+    igraph_t *GraphManager::load_graph(std::string filename)
     {
         //Open a File pipe to graph filename:
         FILE *f;
@@ -17,11 +62,8 @@ namespace Graph
 
         // build the graph according to file syntax:
         char line[MAX_LINE_LENGTH];
+        int *capacities = NULL;
         int i, u, v;
-        //graph *g;
-
-        //if( (g=(graph *)malloc(sizeof(graph))) == NULL )
-        //    std::cerr << "graph_from_file: malloc() error 1");
 
         /* read n */
         if( fgets(line,MAX_LINE_LENGTH,f) == NULL )
@@ -29,30 +71,26 @@ namespace Graph
             std::cerr << "graph_from_file: read error (fgets) 1" << std::endl;
             exit(1);
         }
-        if( sscanf(line, "%d\n", &(this->n)) != 1 )
+        if( sscanf(line, "%d\n", &(this->vertices_nb)) != 1 )
         {
             std::cerr << "graph_from_file: read error (sscanf) 2" << std::endl;
             exit(1);
         }
 
         /* read the degree sequence */
-        if( (this->capacities=(int *)malloc(this->n*sizeof(int))) == NULL )
+        if( (capacities=(int *)malloc(this->vertices_nb*sizeof(int))) == NULL )
         {
             std::cerr << "graph_from_file: malloc() error 2" << std::endl;
             exit(1);
         }
-        if( (this->degrees=(int *)calloc(this->n,sizeof(int))) == NULL )
-        {
-            std::cerr << "graph_from_file: calloc() error" << std::endl;
-            exit(1);
-        }
-        for(i=0;i<this->n;i++){
+
+        for(i=0;i<this->vertices_nb;i++){
             if( fgets(line,MAX_LINE_LENGTH,f) == NULL )
             {
                 std::cerr << "graph_from_file; read error (fgets) 2" << std::endl;
                 exit(1);
             }
-            if( sscanf(line, "%d %d\n", &v, &(this->capacities[i])) != 2 )
+            if( sscanf(line, "%d %d\n", &v, &(capacities[i])) != 2 )
             {
                 std::cerr << "graph_from_file; read error (sscanf) 2" << std::endl;
                 exit(1);
@@ -65,32 +103,17 @@ namespace Graph
         }
 
         /* compute the number of links */
-        this->m=0;
-        for(i=0;i<this->n;i++)
-            this->m += this->capacities[i];
-        this->m /= 2;
+        this->edges_nb=0;
+        for(i=0;i<this->vertices_nb;i++)
+            this->edges_nb += capacities[i];
+        this->edges_nb /= 2;
 
-        /* create contiguous space for links */
-        if (this->n==0){
-            this->links = NULL; this->degrees = NULL; this->capacities = NULL;
-        }
-        else {
-            if( (this->links=(int **)malloc(this->n*sizeof(int*))) == NULL )
-            {
-                std::cerr << "graph_from_file: malloc() error 3" << std::endl;
-                exit(1);
-            }
-            if( (this->links[0]=(int *)malloc(2*this->m*sizeof(int))) == NULL )
-            {
-                std::cerr << "graph_from_file: malloc() error 4" << std::endl;
-                exit(1);
-            }
-            for(i=1;i<this->n;i++)
-                this->links[i] = this->links[i-1] + this->capacities[i-1];
-        }
 
         /* read the links */
-        for(i=0;i<this->m;i++) {
+
+        igraph_vector_init(this->edges, this->edges_nb * 2);
+
+        for(i=0;i<this->edges_nb;i++) {
             if( fgets(line,MAX_LINE_LENGTH,f) == NULL )
             {
                 std::cerr << "graph_from_file; read error (fgets) 3" << std::endl;
@@ -101,43 +124,32 @@ namespace Graph
                 std::cerr << "graph_from_file; read error (sscanf) 3" << std::endl;
                 exit(1);
             }
-            if ( (u>=this->n) || (v>=this->n) || (u<0) || (v<0) ) {
+            if ( (u>=this->vertices_nb) || (v>=this->vertices_nb) || (u<0) || (v<0) ) {
                 fprintf(stderr,"Line just read: %s",line);
                 std::cerr << "graph_from_file: bad node number" << std::endl;
                 exit(1);
             }
-            if ( (this->degrees[u]>=this->capacities[u]) ||
-                    (this->degrees[v]>=this->capacities[v]) ){
-                fprintf(stderr, "reading link %s\n", line);
-                std::cerr << "graph_from_file: too many links for a node" << std::endl;
-                exit(1);
+
+            VECTOR(*(this->edges))[2 * i] = u;
+            VECTOR(*(this->edges))[2 * i + 1] = v;
             }
-            this->links[u][this->degrees[u]] = v;
-            this->degrees[u]++;
-            this->links[v][this->degrees[v]] = u;
-            this->degrees[v]++;
-        }
-        for(i=0;i<this->n;i++)
-            if (this->degrees[i]!=this->capacities[i])
-            {
-                std::cerr << "graph_from_file: capacities <> degrees" << std::endl;
-                exit(1);
-            }
+
+        igraph_create(this->graph, this->edges, this->vertices_nb, false);
+
         if( fgets(line,MAX_LINE_LENGTH,f) != NULL )
         {
             std::cerr << "graph_from_file; too many lines" << std::endl;
             exit(1);
         }
-    }
+
+        return this->graph;
+}
 
 
-    void graph::flush()
+    void GraphManager::flush()
     {
         std::cout << "graph is composed by:\n\n"
-            << get_n() << " nodes\n"
-            << get_m() << " edges\n"
-            << "and first node is composed by:\n\t"
-            << (get_degrees())[0] << " is the degree\n\t"
-            << (get_capacities())[0] << " is the capacity\n";
+            << this->get_vertices_nb() << " vertices\n"
+            << this->get_edges_nb() << " edges\n";
     }
 }
