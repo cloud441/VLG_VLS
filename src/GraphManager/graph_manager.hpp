@@ -6,11 +6,17 @@
 #include <stdlib.h>
 #include <igraph.h>
 
+// Macro used in load_graph() for file parsing:
 #define MAX_LINE_LENGTH 1000
 
 
 namespace Graph
 {
+
+    /**
+     ** GraphManager class:
+     **     Wrapper on igraph structure with additional tools like GCC computation etc ...
+     **/
 
     class GraphManager
     {
@@ -25,23 +31,24 @@ namespace Graph
 
             void flush();
 
+            // Getters:
             int get_vertices_nb();
             int get_edges_nb();
 
 
         private:
 
-            igraph_t *graph;
-            igraph_t *gcc;
-            igraph_vector_t *edges;
+            igraph_t *graph; // igraph structure of very large graph.
+            igraph_t *gcc; // Greatest Connected Component of the graph attribute.
+            igraph_vector_t *edges; // all edges of the graph attributes.
 
-            int vertices_nb;
-            int edges_nb;
+            int vertices_nb; // number of vertices in graph attributes.
+            int edges_nb; // number of edges in graph attributes.
 
     };
 
     /**
-     ** Getters of graph class:
+     ** Getters implementation:
      **/
 
     inline int GraphManager::get_vertices_nb()

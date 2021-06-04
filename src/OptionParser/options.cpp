@@ -1,7 +1,13 @@
 #include "options.hpp"
 
+
 namespace Option
 {
+
+    /**
+     ** OptionParser class constructor:
+     **     parse input and store them into class attributes.
+     **/
 
     OptionParser::OptionParser(int argc, char **argv)
     {
@@ -41,4 +47,4 @@ namespace Option
         }
     }
 
-}
+} // namespace Option

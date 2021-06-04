@@ -3,6 +3,11 @@
 namespace Graph
 {
 
+    /**
+     ** GraphManager class constructor:
+     **     allocate memory for pointer attributes.
+     **/
+
     GraphManager::GraphManager()
     {
         this->graph = (igraph_t *)malloc(sizeof(igraph_t));
@@ -23,6 +28,11 @@ namespace Graph
     }
 
 
+    /**
+     ** GraphManager class destructor:
+     **     free memory for pointer attributes.
+     **/
+
     GraphManager::~GraphManager()
     {
         free(this->graph);
@@ -32,11 +42,17 @@ namespace Graph
     }
 
 
-
+    /**
+     ** load_graph():
+     **     params: filename -> path of graph file.
+     **
+     **     Read graph from filename file and parse the vertices number
+     **     and edge list.
+     **/
 
     igraph_t *GraphManager::load_graph(std::string filename)
     {
-        //Open a File pipe to graph filename:
+        // Open a File pipe to graph filename:
         FILE *f;
         if ((f = fopen(filename.c_str(), "r")) == NULL)
         {
@@ -46,12 +62,12 @@ namespace Graph
             exit(1);
         }
 
-        // build the graph according to file syntax:
+        // Build the graph according to file syntax:
         char line[MAX_LINE_LENGTH];
-        int *capacities = NULL;
+        int *degrees = NULL;
         int i, u, v;
 
-        /* read n */
+        // Read number of vertices:
         if( fgets(line,MAX_LINE_LENGTH,f) == NULL )
         {
             std::cerr << "graph_from_file: read error (fgets) 1" << std::endl;
@@ -63,8 +79,8 @@ namespace Graph
             exit(1);
         }
 
-        /* read the degree sequence */
-        if( (capacities=(int *)malloc(this->vertices_nb*sizeof(int))) == NULL )
+        // Read the degree sequence:
+        if( (degrees=(int *)malloc(this->vertices_nb*sizeof(int))) == NULL )
         {
             std::cerr << "graph_from_file: malloc() error 2" << std::endl;
             exit(1);
@@ -76,7 +92,7 @@ namespace Graph
                 std::cerr << "graph_from_file; read error (fgets) 2" << std::endl;
                 exit(1);
             }
-            if( sscanf(line, "%d %d\n", &v, &(capacities[i])) != 2 )
+            if( sscanf(line, "%d %d\n", &v, &(degrees[i])) != 2 )
             {
                 std::cerr << "graph_from_file; read error (sscanf) 2" << std::endl;
                 exit(1);
@@ -88,15 +104,14 @@ namespace Graph
             }
         }
 
-        /* compute the number of links */
+        // Compute the number of edges:
         this->edges_nb=0;
         for(i=0;i<this->vertices_nb;i++)
-            this->edges_nb += capacities[i];
+            this->edges_nb += degrees[i];
         this->edges_nb /= 2;
 
 
-        /* read the links */
-
+        // Read edge list:
         igraph_vector_init(this->edges, this->edges_nb * 2);
 
         for(i=0;i<this->edges_nb;i++) {
@@ -120,8 +135,10 @@ namespace Graph
             VECTOR(*(this->edges))[2 * i + 1] = v;
         }
 
+        // Create the igraph structure:
         igraph_create(this->graph, this->edges, this->vertices_nb, false);
 
+        // Check the valid read of the graph file:
         if( fgets(line,MAX_LINE_LENGTH,f) != NULL )
         {
             std::cerr << "graph_from_file; too many lines" << std::endl;
@@ -132,10 +149,20 @@ namespace Graph
     }
 
 
-    igraph_t *GraphManager::extract_subgraph(int first_vertice, int last_vertices)
+    /**
+     ** extract_subgraph():
+     **     params: first_vertex -> begin vertex ID of the sequence.
+     **             last_vertex  -> end vertex ID of the sequence.
+     **
+     **     Extract a graph part and build another graph from the selected sequence.
+     **     The sequence is a continuous part of vertex between first_vertex ID and
+     **     last_vertex ID.
+     **/
+
+    igraph_t *GraphManager::extract_subgraph(int first_vertex, int last_vertex)
     {
-        igraph_integer_t from = first_vertice;
-        igraph_integer_t to = last_vertices;
+        igraph_integer_t from = first_vertex;
+        igraph_integer_t to = last_vertex;
         igraph_vs_t vs;
 
         igraph_vs_seq(&vs, from, to);
@@ -152,6 +179,13 @@ namespace Graph
     }
 
 
+    /**
+     ** compute_gcc():
+     **     Compute the greatest connected component of the graph.
+     **     the objective is to avoid isolated vertices and
+     **     obtain a graph with defined excentricity and diameter.
+     **/
+
     igraph_t *GraphManager::compute_gcc()
     {
         if (this->gcc)
@@ -159,36 +193,39 @@ namespace Graph
 
         igraph_vector_t components;
         igraph_vector_t components_size;
-        igraph_vector_t gcc_vertices;
-        igraph_integer_t nb_components;
-        igraph_vs_t vs;
-        this->gcc = (igraph_t *)malloc(sizeof(igraph_t));
-
         igraph_vector_init(&components, 1);
         igraph_vector_init(&components_size, 1);
-        igraph_clusters(this->graph, &components, &components_size, &nb_components, IGRAPH_STRONG);
+        igraph_integer_t nb_components;
 
+        igraph_clusters(this->graph, &components, &components_size, &nb_components, IGRAPH_STRONG);
 
         // get id of max component.
         int gcc_id = igraph_vector_which_max(&components_size);
-
 
         // get a point of the component
         int gcc_vertex_id = 0;
         while (VECTOR(components)[gcc_vertex_id] != gcc_id)
             gcc_vertex_id++;
 
-
         // compute GCC graph
+        igraph_vector_t gcc_vertices;
         igraph_vector_init(&gcc_vertices, 1);
+        igraph_vs_t vs;
+
         igraph_subcomponent(this->graph, &gcc_vertices, gcc_vertex_id, IGRAPH_ALL);
         igraph_vs_vector(&vs, &gcc_vertices);
+
+        this->gcc = (igraph_t *)malloc(sizeof(igraph_t));
         igraph_induced_subgraph(this->graph, this->gcc, vs, IGRAPH_SUBGRAPH_COPY_AND_DELETE);
 
         return this->gcc;
     }
 
 
+    /**
+     ** flush():
+     **     print the graph basic informations.
+     **/
 
     void GraphManager::flush()
     {
@@ -196,4 +233,4 @@ namespace Graph
             << this->get_vertices_nb() << " vertices\n"
             << this->get_edges_nb() << " edges\n";
     }
-}
+} // namespace Graph
