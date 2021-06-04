@@ -18,6 +18,8 @@ namespace Graph
             std::cerr << "Error: malloc can't allocate edges object" << std::endl;
             exit(1);
         }
+
+        this->gcc = NULL;
     }
 
 
@@ -25,27 +27,11 @@ namespace Graph
     {
         free(this->graph);
         free(this->edges);
+        if (this->gcc)
+            free(this->gcc);
     }
 
 
-    igraph_t *GraphManager::extract_subgraph(int first_vertice, int last_vertices)
-    {
-        igraph_integer_t from = first_vertice;
-        igraph_integer_t to = last_vertices;
-        igraph_vs_t vs;
-
-        igraph_vs_seq(&vs, from, to);
-
-        igraph_t *sub_g = (igraph_t *)malloc(sizeof(igraph_t));
-        if (!sub_g)
-        {
-            std::cerr << "Error: malloc failed to allocate sub graph space" << std::endl;
-            exit(1);
-        }
-
-        igraph_induced_subgraph(this->graph, sub_g, vs, IGRAPH_SUBGRAPH_COPY_AND_DELETE);
-        return sub_g;
-    }
 
 
     igraph_t *GraphManager::load_graph(std::string filename)
@@ -132,7 +118,7 @@ namespace Graph
 
             VECTOR(*(this->edges))[2 * i] = u;
             VECTOR(*(this->edges))[2 * i + 1] = v;
-            }
+        }
 
         igraph_create(this->graph, this->edges, this->vertices_nb, false);
 
@@ -143,7 +129,65 @@ namespace Graph
         }
 
         return this->graph;
-}
+    }
+
+
+    igraph_t *GraphManager::extract_subgraph(int first_vertice, int last_vertices)
+    {
+        igraph_integer_t from = first_vertice;
+        igraph_integer_t to = last_vertices;
+        igraph_vs_t vs;
+
+        igraph_vs_seq(&vs, from, to);
+
+        igraph_t *sub_g = (igraph_t *)malloc(sizeof(igraph_t));
+        if (!sub_g)
+        {
+            std::cerr << "Error: malloc failed to allocate sub graph space" << std::endl;
+            exit(1);
+        }
+
+        igraph_induced_subgraph(this->graph, sub_g, vs, IGRAPH_SUBGRAPH_COPY_AND_DELETE);
+        return sub_g;
+    }
+
+
+    igraph_t *GraphManager::compute_gcc()
+    {
+        if (this->gcc)
+            return this->gcc;
+
+        igraph_vector_t components;
+        igraph_vector_t components_size;
+        igraph_vector_t gcc_vertices;
+        igraph_integer_t nb_components;
+        igraph_vs_t vs;
+        this->gcc = (igraph_t *)malloc(sizeof(igraph_t));
+
+        igraph_vector_init(&components, 1);
+        igraph_vector_init(&components_size, 1);
+        igraph_clusters(this->graph, &components, &components_size, &nb_components, IGRAPH_STRONG);
+
+
+        // get id of max component.
+        int gcc_id = igraph_vector_which_max(&components_size);
+
+
+        // get a point of the component
+        int gcc_vertex_id = 0;
+        while (VECTOR(components)[gcc_vertex_id] != gcc_id)
+            gcc_vertex_id++;
+
+
+        // compute GCC graph
+        igraph_vector_init(&gcc_vertices, 1);
+        igraph_subcomponent(this->graph, &gcc_vertices, gcc_vertex_id, IGRAPH_ALL);
+        igraph_vs_vector(&vs, &gcc_vertices);
+        igraph_induced_subgraph(this->graph, this->gcc, vs, IGRAPH_SUBGRAPH_COPY_AND_DELETE);
+
+        return this->gcc;
+    }
+
 
 
     void GraphManager::flush()

@@ -21,6 +21,7 @@ namespace Graph
 
             igraph_t *load_graph(std::string filename);
             igraph_t *extract_subgraph(int first_vertice, int last_vertices);
+            igraph_t *compute_gcc();
 
             void flush();
 
@@ -31,6 +32,7 @@ namespace Graph
         private:
 
             igraph_t *graph;
+            igraph_t *gcc;
             igraph_vector_t *edges;
 
             int vertices_nb;
