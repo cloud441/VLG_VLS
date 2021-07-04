@@ -15,11 +15,14 @@ int main(int argc, char **argv)
     igraph_t *g = g_manager.load_graph(op_parser.get_filename());
 
     // Compute Greatest connected component:
-    igraph_t *gcc = g_manager.compute_gcc();
+    //igraph_t *gcc = g_manager.compute_gcc();
 
-    //igraph_real_t diameter = 0;
-    //igraph_diameter(gcc, &diameter, 0, 0, 0, IGRAPH_UNDIRECTED, 1);
-    //std::cout << "diameter is: " << diameter << std::endl;
+    // Extract light sub graph for testing:
+    igraph_t *sub_g = g_manager.extract_subgraph(1, 10000);
+
+    // Create spanner of the graph:
+    igraph_t *span = g_manager.compute_spanner(Graph::GraphSource::SUBGRAPH);
+    std::cout << igraph_vcount(span) << std::endl;
 
     return 0;
 }

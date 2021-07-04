@@ -25,6 +25,8 @@ namespace Graph
         }
 
         this->gcc = NULL;
+        this->span = NULL;
+        this->sub_graph = NULL;
     }
 
 
@@ -37,6 +39,7 @@ namespace Graph
     {
         free(this->graph);
         free(this->edges);
+
         if (this->gcc)
             free(this->gcc);
     }
@@ -136,7 +139,7 @@ namespace Graph
         }
 
         // Create the igraph structure:
-        igraph_create(this->graph, this->edges, this->vertices_nb, false);
+        igraph_create(this->graph, this->edges, this->vertices_nb, IGRAPH_UNDIRECTED);
 
         // Check the valid read of the graph file:
         if( fgets(line,MAX_LINE_LENGTH,f) != NULL )
@@ -175,6 +178,8 @@ namespace Graph
         }
 
         igraph_induced_subgraph(this->graph, sub_g, vs, IGRAPH_SUBGRAPH_COPY_AND_DELETE);
+        this->sub_graph = sub_g;
+
         return sub_g;
     }
 
@@ -223,6 +228,39 @@ namespace Graph
 
 
     /**
+     ** compute_spanner():
+     **     Compute the graph spanner according to algorithms in spanner_algo.cpp.
+     **     A graph spanner in a light version of the graph containing same nulber of edges
+     **     but less vertices. The objective is to lighten a graph regarding to the same
+     **     structure.
+     **/
+
+    igraph_t *GraphManager::compute_spanner(GraphSource source = GraphSource::ORIGIN)
+    {
+        // Compute span from specific graph version (tests):
+        switch(source)
+        {
+        case GraphSource::ORIGIN:
+            this->span = Spanner::spanner_graph(this->graph);
+            break;
+
+        case GraphSource::GCC:
+            this->span = Spanner::spanner_graph(this->gcc);
+            break;
+
+        case GraphSource::SUBGRAPH:
+            this->span = Spanner::spanner_graph(this->sub_graph);
+            break;
+
+        default:
+            break;
+        }
+
+        return this->span;
+    }
+
+
+    /**
      ** flush():
      **     print the graph basic informations.
      **/
@@ -232,5 +270,34 @@ namespace Graph
         std::cout << "graph is composed by:\n\n"
             << this->get_vertices_nb() << " vertices\n"
             << this->get_edges_nb() << " edges\n";
+    }
+
+
+    /**
+     ** diameter():
+     **     Get the graph diameter according to igraph algorithm.
+     **/
+
+    igraph_real_t diameter(igraph_t *g)
+    {
+        igraph_real_t d = 0;
+        igraph_diameter(g, &d, 0, 0, 0, IGRAPH_UNDIRECTED, 1);
+
+        return d;
+    }
+
+
+    /**
+     ** diameter_path():
+     **     Get the graph diameter path according to igraph algorithm.
+     **/
+
+    igraph_vector_t diameter_path(igraph_t *g)
+    {
+        igraph_vector_t path;
+        igraph_vector_init(&path, 10);
+        igraph_diameter(g, 0, 0, 0, &path, IGRAPH_UNDIRECTED, 1);
+
+        return path;
     }
 } // namespace Graph
