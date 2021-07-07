@@ -21,7 +21,7 @@ namespace Spanner
 
 
     /**
-     ** initalize_spanner():
+     ** initialize_spanner():
      **     params:  g -> model based graph for span building.
      **
      **     Initialize span igraph structure for span building.
@@ -34,6 +34,66 @@ namespace Spanner
         igraph_empty(span, igraph_vcount(g), IGRAPH_UNDIRECTED);
 
         return span;
+    }
+
+
+    /**
+     ** build_bfs_edges():
+     **     params:  vparents -> list of parent vertice index according to index in list.
+     **
+     **     Build the list of BFS edges following this structure:
+     **         (parent_01, node_01, parent_02, node_02, ...)
+     **/
+
+    static igraph_vector_t build_bfs_edges(igraph_vector_t vparents, igraph_integer_t root_id)
+    {
+        int vparents_size = igraph_vector_size(&vparents);
+
+        igraph_vector_t bfs_edges;
+        igraph_vector_init(&bfs_edges, 2 * vparents_size);
+
+        for (int i = 0; i < vparents_size; i++)
+        {
+            // skip the root check because root doesn't have a parent.
+            if (i == root_id)
+                continue;
+
+            VECTOR(bfs_edges)[2 * i] = VECTOR(vparents)[i]; // parent
+            VECTOR(bfs_edges)[2 * i + 1] = i; // child
+
+            // manage root case by swapping parent/node order.
+            // So, we have two (root, root_child) into bfs_edges.
+            if (VECTOR(vparents)[i] == root_id)
+            {
+                VECTOR(bfs_edges)[2 * root_id] = i; // child
+                VECTOR(bfs_edges)[2 * root_id + 1] = root_id; // root
+            }
+        }
+
+        return bfs_edges;
+    }
+
+
+    /**
+     ** merge_bfs():
+     **     params:  g -> spanner graph we want to complete with new BFS.
+     **              bfs_vertices -> vertices of the new BFS to merge.
+     **              bfs_layers -> vertices layer numbers according to bfs_vertices order.
+     **              bfs_vparents -> parent of each edges into new BFS search.
+     **
+     **/
+
+    static void merge_bfs(igraph_t *g, igraph_vector_t bfs_vertices, igraph_vector_t bfs_layers, igraph_vector_t bfs_vparents)
+    {
+        // First merge case, just take all edges from first BFS
+        if (!igraph_ecount(g))
+        {
+            igraph_vector_t bfs_edges = build_bfs_edges(bfs_vparents, VECTOR(bfs_vertices)[0]);
+            igraph_add_edges(g, &bfs_edges, 0);
+            return;
+        }
+
+        // FIXME: finish else case, with selecting best vertices.
     }
 
 
@@ -52,10 +112,10 @@ namespace Spanner
         // random selection of source points
         std::vector<int> sources_pt = select_bfs_points(g);
 
-        // Initialize span (H) with all edges but no vertices
+        // Initialize span with all edges but no vertices
         igraph_t *span = initialize_spanner(g);
 
-        // Initialize BFS storage vectors:
+        // Initialize BFS storage vectors
         igraph_vector_t bfs_vertices;
         igraph_vector_t bfs_layers;
         igraph_vector_t bfs_vparents;
@@ -65,14 +125,12 @@ namespace Spanner
         igraph_vector_init(&bfs_vparents, 0);
 
         /* for each source points, compute BFS and merge it to span, compute difference of up/down bounding excentricity,
-        compute mean value and variance and choose a stop condition. */
+           compute mean value and variance and choose a stop condition. */
         for (int source_pt : sources_pt)
         {
             igraph_bfs_simple(g, source_pt, IGRAPH_ALL, &bfs_vertices, &bfs_layers, &bfs_vparents);
-            /*
-            FIXME: finish algo with merge and stop condition
             merge_bfs(span, bfs_vertices, bfs_layers, bfs_vparents);
-            */
+            //FIXME: finish algo with stop condition
         }
 
         return span;
