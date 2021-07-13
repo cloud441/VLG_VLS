@@ -4,6 +4,13 @@
 namespace Spanner
 {
 
+    /**
+     ** select_points_randomly():
+     **     params:  g -> model based graph for span building.
+     **
+     **     Select 15 random vertices from graph.
+     **/
+
     static std::vector<int> select_points_randomly(igraph_t *g)
     {
         igraph_rng_t *rng_generator = igraph_rng_default();
@@ -20,6 +27,55 @@ namespace Spanner
     }
 
 
+    /**
+     ** select_points_from_communities():
+     **     params:  g -> model based graph for span building.
+     **
+     **     Compute communities of the graph based on Leiden algorithm, then select one
+     **     representative from each community. The result is all the selected vertices
+     **     of the graph.
+     **/
+
+    static std::vector<int> select_points_from_communities(igraph_t *g)
+    {
+        // Compute communities
+        igraph_integer_t communities_nb;
+        igraph_vector_t membership;
+        igraph_vector_init(&membership, igraph_vcount(g));
+
+        igraph_community_leiden(g, NULL, NULL, GAMMA_COMMUNITIES, 0.01, 0, &membership, &communities_nb, NULL);
+
+        // Add communities representative (first encountered) as source points
+        std::vector<int> select_pts = std::vector<int>();
+        std::vector<int> encountered_clusters = std::vector<int>();
+        int membership_index = 0;
+
+        while (select_pts.size() < communities_nb)
+        {
+            int cluster = VECTOR(membership)[membership_index];
+
+            if (std::find(encountered_clusters.begin(), encountered_clusters.end(), cluster) == encountered_clusters.end())
+            {
+                encountered_clusters.push_back(cluster);
+                select_pts.push_back(membership_index);
+            }
+
+            membership_index++;
+        }
+
+        return select_pts;
+    }
+
+
+    /**
+     ** select_bfs_points():
+     **     params:  g -> model based graph for span building.
+     **              strat -> strategy of points selection.
+     **
+     **     Select vertices from the g graph according to a strat strategy defined
+     **     in BFS_STRATEGY enum. Then call the according strategy selection.
+     **/
+
     static std::vector<int> select_bfs_points(igraph_t *g, BFS_STRATEGY strat)
     {
         std::vector<int> select_pts;
@@ -30,8 +86,7 @@ namespace Spanner
             select_pts = select_points_randomly(g);
             break;
         case BFS_STRATEGY::COMMUNITY:
-            std::cerr << "Error: Community not implemented yet." << std::endl;
-            exit(1);
+            select_pts = select_points_from_communities(g);
             break;
         }
 
