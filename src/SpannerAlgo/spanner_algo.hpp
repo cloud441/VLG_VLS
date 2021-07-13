@@ -11,6 +11,12 @@
 namespace Spanner
 {
 
+    enum BFS_STRATEGY
+    {
+        RANDOM,
+        COMMUNITY
+    };
+
     igraph_t *spanner_graph(igraph_t *g);
 
 } // namespace Spanner
