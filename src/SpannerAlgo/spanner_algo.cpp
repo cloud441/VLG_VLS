@@ -94,6 +94,41 @@ namespace Spanner
 
 
     /**
+     ** remove_similar_edges():
+     **     params:  g -> original graph containing last added edges.
+     **              bfs_edges -> new BFS edges vector to clean.
+     **
+     **     Remove all edges from bfs_edges that are found in the original g graph.
+     **/
+
+    static void remove_similar_edges(igraph_t *g, igraph_vector_t *bfs_edges)
+    {
+        igraph_vector_t cleaned_edges;
+        int bfs_edges_size = igraph_vector_size(bfs_edges);
+        igraph_vector_init(&cleaned_edges, bfs_edges_size);
+
+        igraph_integer_t edge_eid;
+        int cleaned_index = 0;
+
+        for (int i = 0; i < bfs_edges_size; i += 2)
+        {
+            igraph_integer_t from = VECTOR(*bfs_edges)[i];
+            igraph_integer_t to = VECTOR(*bfs_edges)[i + 1];
+
+            igraph_get_eid(g, &edge_eid, from, to, false, false);
+
+            // Edge between from and to doesn't exist
+            if (edge_eid == -1)
+            {
+                VECTOR(cleaned_edges)[cleaned_index++] = from;
+                VECTOR(cleaned_edges)[cleaned_index++] = to;
+            }
+        }
+
+        *bfs_edges = cleaned_edges;
+    }
+
+    /**
      ** merge_bfs():
      **     params:  g -> spanner graph we want to complete with new BFS.
      **              bfs_vertices -> vertices of the new BFS to merge.
@@ -104,15 +139,20 @@ namespace Spanner
 
     static void merge_bfs(igraph_t *g, igraph_vector_t bfs_vertices, igraph_vector_t bfs_layers, igraph_vector_t bfs_vparents)
     {
+        igraph_vector_t bfs_edges;
+        bfs_edges = build_bfs_edges(bfs_vparents, VECTOR(bfs_vertices)[0]);
+
         // First merge case, just take all edges from first BFS
         if (!igraph_ecount(g))
         {
-            igraph_vector_t bfs_edges = build_bfs_edges(bfs_vparents, VECTOR(bfs_vertices)[0]);
             igraph_add_edges(g, &bfs_edges, 0);
             return;
         }
 
-        // FIXME: finish else case, with selecting best vertices.
+        // Merge BFS with current g graph
+        //        remove_similar_edges(g, &bfs_edges);
+
+        igraph_add_edges(g, &bfs_edges, 0);
     }
 
 
@@ -145,11 +185,20 @@ namespace Spanner
 
         /* for each source points, compute BFS and merge it to span, compute difference of up/down bounding excentricity,
            compute mean value and variance and choose a stop condition. */
-        for (int source_pt : sources_pt)
+        for (int i = 0 ; i < sources_pt.size(); i++)
         {
-            igraph_bfs_simple(g, source_pt, IGRAPH_ALL, &bfs_vertices, &bfs_layers, &bfs_vparents);
+            std::cout << "Spanner building: BFS number " << i << " is merging ..." << '\n';
+            igraph_bfs_simple(g, sources_pt[i], IGRAPH_ALL, &bfs_vertices, &bfs_layers, &bfs_vparents);
+
+            if (igraph_ecount(g) < (igraph_ecount(span) + (igraph_vector_size(&bfs_vparents) * 2)))
+            {
+                std::cout << "Stopping condition is reached." << std::endl;
+                break;
+            }
+
             merge_bfs(span, bfs_vertices, bfs_layers, bfs_vparents);
-            //FIXME: finish algo with stop condition
+            std::cout << "Spanner is composed by: " << igraph_ecount(span) << " edges.\n" 
+                << "Done." << std::endl;
         }
 
         return span;
