@@ -4,7 +4,7 @@
 namespace Spanner
 {
 
-    static std::vector<int> select_bfs_points(igraph_t *g)
+    static std::vector<int> select_points_randomly(igraph_t *g)
     {
         igraph_rng_t *rng_generator = igraph_rng_default();
         igraph_rng_init(rng_generator, &igraph_rngtype_glibc2);
@@ -15,6 +15,25 @@ namespace Spanner
 
         for (int i = 0; i < 15; i++)
             select_pts.push_back(igraph_rng_get_integer(rng_generator, 0, vertices_nb));
+
+        return select_pts;
+    }
+
+
+    static std::vector<int> select_bfs_points(igraph_t *g, BFS_STRATEGY strat)
+    {
+        std::vector<int> select_pts;
+
+        switch(strat)
+        {
+        case BFS_STRATEGY::RANDOM:
+            select_pts = select_points_randomly(g);
+            break;
+        case BFS_STRATEGY::COMMUNITY:
+            std::cerr << "Error: Community not implemented yet." << std::endl;
+            exit(1);
+            break;
+        }
 
         return select_pts;
     }
@@ -107,10 +126,10 @@ namespace Spanner
      **     this is the graph spanner.
      **/
 
-    igraph_t *spanner_graph(igraph_t *g)
+    igraph_t *spanner_graph(igraph_t *g, BFS_STRATEGY strat)
     {
         // random selection of source points
-        std::vector<int> sources_pt = select_bfs_points(g);
+        std::vector<int> sources_pt = select_bfs_points(g, strat);
 
         // Initialize span with all edges but no vertices
         igraph_t *span = initialize_spanner(g);

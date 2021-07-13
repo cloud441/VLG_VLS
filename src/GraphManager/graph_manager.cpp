@@ -235,21 +235,21 @@ namespace Graph
      **     structure.
      **/
 
-    igraph_t *GraphManager::compute_spanner(GraphSource source = GraphSource::ORIGIN)
+    igraph_t *GraphManager::compute_spanner(GraphSource source = GraphSource::ORIGIN, Spanner::BFS_STRATEGY strat = Spanner::BFS_STRATEGY::RANDOM)
     {
         // Compute span from specific graph version (tests):
         switch(source)
         {
         case GraphSource::ORIGIN:
-            this->span = Spanner::spanner_graph(this->graph);
+            this->span = Spanner::spanner_graph(this->graph, strat);
             break;
 
         case GraphSource::GCC:
-            this->span = Spanner::spanner_graph(this->gcc);
+            this->span = Spanner::spanner_graph(this->gcc, strat);
             break;
 
         case GraphSource::SUBGRAPH:
-            this->span = Spanner::spanner_graph(this->sub_graph);
+            this->span = Spanner::spanner_graph(this->sub_graph, strat);
             break;
 
         default:

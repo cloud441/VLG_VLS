@@ -38,7 +38,7 @@ namespace Graph
             igraph_t *load_graph(std::string filename);
             igraph_t *extract_subgraph(int first_vertice, int last_vertices);
             igraph_t *compute_gcc();
-            igraph_t *compute_spanner(GraphSource source);
+            igraph_t *compute_spanner(GraphSource source, Spanner::BFS_STRATEGY strat);
 
             void flush();
 

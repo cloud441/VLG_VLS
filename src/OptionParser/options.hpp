@@ -22,6 +22,7 @@ namespace Option
 
             // Getters:
             std::string get_filename();
+            Spanner::BFS_STRATEGY get_bfs_strategy();
 
         private:
 
@@ -44,6 +45,12 @@ namespace Option
     inline std::string OptionParser::get_filename()
     {
         return this->filename;
+    }
+
+
+    inline Spanner::BFS_STRATEGY OptionParser::get_bfs_strategy()
+    {
+        return this->bfs_strategy;
     }
 
 
