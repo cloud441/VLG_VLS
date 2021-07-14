@@ -3,11 +3,14 @@
 #include <igraph.h>
 #include <vector>
 #include <algorithm>
+#include <numeric>
 #include <iostream>
+#include <limits>
 
 
 #define RNG_SEED 42
 #define GAMMA_COMMUNITIES 0.0001
+
 
 
 namespace Spanner

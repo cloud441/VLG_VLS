@@ -211,6 +211,85 @@ namespace Spanner
     }
 
 
+    /**
+     ** dijkstra_dist():
+     **     params:  g -> spanner graph we want to complete with new BFS.
+     **              from -> source vertice id of the required path.
+     **              to -> destination vertice id of the required path.
+     **
+     **     Compute the dijkstra distance between from vertice to to vertice.
+     **/
+
+    static int dijkstra_dist(igraph_t *g, int from, int to)
+    {
+        igraph_matrix_t dist_mat;
+        igraph_vs_t from_vs;
+        igraph_vs_t to_vs;
+
+        igraph_matrix_init(&dist_mat, 1, 1);
+        igraph_vs_1(&from_vs, from);
+        igraph_vs_1(&to_vs, to);
+
+        igraph_shortest_paths(g, &dist_mat, from_vs, to_vs, IGRAPH_ALL);
+
+        return igraph_matrix_e(&dist_mat, 0, 0);
+    }
+
+
+
+    /**
+     ** bounding_eccentricities():
+     **     params:  g -> spanner graph we want to complete with new BFS.
+     **
+     **     Return the list of all eccentricities associated to each vertices in g graph.
+     **     The algorithm is based on Takes & Koster implementation.
+     **/
+
+    static std::vector<int> bounding_eccentricities(igraph_t *g)
+    {
+        int vertices_nb = igraph_vcount(g);
+        std::vector<int> g_vertices = std::vector<int>(vertices_nb);
+        std::iota(g_vertices.begin(), g_vertices.end(), 0); // fill g_vertices with int from 0 to vertices_nb
+
+        // define eccentricities vectors
+        std::vector<int> eps = std::vector<int>(vertices_nb); // eccentricities list
+        std::vector<int> eps_l = std::vector<int>(vertices_nb); // lower bound eccentricities list
+        std::vector<int> eps_u = std::vector<int>(vertices_nb); // upper bound eccentricities list
+
+        // set to default value
+        std::fill(eps.begin(), eps.end(), 0);
+        std::fill(eps_l.begin(), eps_l.end(), std::numeric_limits<int>::min());
+        std::fill(eps_u.begin(), eps_u.end(), std::numeric_limits<int>::max());
+
+        while (!g_vertices.empty())
+        {
+            int cur_vertice = g_vertices[0];
+            igraph_vs_t ecc_help_vs;
+            igraph_vs_1(&ecc_help_vs, cur_vertice);
+
+
+            // compute eccentricity of cur_vector
+            igraph_vector_t ecc_help_results;
+            igraph_eccentricity(g, &ecc_help_results, ecc_help_vs, IGRAPH_ALL);
+            eps[cur_vertice] = VECTOR(ecc_help_results)[0];
+
+            for (int v : g_vertices)
+            {
+                eps_l[cur_vertice] = std::max(eps_l[v], std::max(eps[cur_vertice] - dijkstra_dist(g, v, cur_vertice), dijkstra_dist(g, v, cur_vertice)));
+                eps_u[cur_vertice] = std::min(eps_u[cur_vertice], eps[v] - dijkstra_dist(g, v, cur_vertice));
+
+                if (eps_l[cur_vertice] == eps_u[cur_vertice])
+                {
+                    eps[cur_vertice] = eps_l[cur_vertice];
+                    // erase cur_vertice of the vertices vectors
+                    g_vertices.erase(std::find(g_vertices.begin(), g_vertices.end(), cur_vertice));
+                }
+            }
+        }
+
+        return eps;
+    }
+
 
     /**
      ** spanner_graph():
