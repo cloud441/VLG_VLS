@@ -55,6 +55,9 @@ namespace Graph
 
     igraph_t *GraphManager::load_graph(std::string filename)
     {
+
+        std::cout << "\n\t_______________________________\n\n" << "Loading of the graph from " << filename
+            << "...\n";
         // Open a File pipe to graph filename:
         FILE *f;
         if ((f = fopen(filename.c_str(), "r")) == NULL)
@@ -148,6 +151,11 @@ namespace Graph
             exit(1);
         }
 
+        std::cout << "Original graph is composed by:\n"
+            << "\tnumber of vertices: " << igraph_vcount(this->graph) << "\n"
+            << "\tnumber of edges: " << igraph_ecount(this->graph) << "\n"
+            << "Loading done." << std::endl;
+
         return this->graph;
     }
 
@@ -196,6 +204,9 @@ namespace Graph
         if (this->gcc)
             return this->gcc;
 
+
+        std::cout << "\n\t_______________________________\n\n" << "Computing of the GCC ...\n";
+
         igraph_vector_t components;
         igraph_vector_t components_size;
         igraph_vector_init(&components, 1);
@@ -223,6 +234,11 @@ namespace Graph
         this->gcc = (igraph_t *)malloc(sizeof(igraph_t));
         igraph_induced_subgraph(this->graph, this->gcc, vs, IGRAPH_SUBGRAPH_COPY_AND_DELETE);
 
+        std::cout << "GCC of the graph is composed by:\n"
+            << "\tnumber of vertices: " << igraph_vcount(this->gcc) << "\n"
+            << "\tnumber of edges: " << igraph_ecount(this->gcc) << "\n"
+            << "Computing done." << std::endl;
+
         return this->gcc;
     }
 
@@ -235,21 +251,21 @@ namespace Graph
      **     structure.
      **/
 
-    igraph_t *GraphManager::compute_spanner(GraphSource source = GraphSource::ORIGIN, Spanner::BFS_STRATEGY strat = Spanner::BFS_STRATEGY::RANDOM)
+    igraph_t *GraphManager::compute_spanner(GraphSource source = GraphSource::ORIGIN, Spanner::BFS_STRATEGY strat = Spanner::BFS_STRATEGY::RANDOM, int bfs_nb = 30)
     {
         // Compute span from specific graph version (tests):
         switch(source)
         {
         case GraphSource::ORIGIN:
-            this->span = Spanner::spanner_graph(this->graph, strat);
+            this->span = Spanner::spanner_graph(this->graph, strat, bfs_nb);
             break;
 
         case GraphSource::GCC:
-            this->span = Spanner::spanner_graph(this->gcc, strat);
+            this->span = Spanner::spanner_graph(this->gcc, strat, bfs_nb);
             break;
 
         case GraphSource::SUBGRAPH:
-            this->span = Spanner::spanner_graph(this->sub_graph, strat);
+            this->span = Spanner::spanner_graph(this->sub_graph, strat, bfs_nb);
             break;
 
         default:

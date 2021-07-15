@@ -23,6 +23,7 @@ namespace Option
             // Getters:
             std::string get_filename();
             Spanner::BFS_STRATEGY get_bfs_strategy();
+            int get_bfs_nb();
 
         private:
 
@@ -31,6 +32,7 @@ namespace Option
             bool show_graph = false; // option to print graph during processing.
             bool debug = false; // option to print debug information during processing.
             Spanner::BFS_STRATEGY bfs_strategy = Spanner::BFS_STRATEGY::RANDOM;
+            int bfs_nb = 50;
 
             // Methods:
             void strategy_switch(std::string strat);
@@ -51,6 +53,12 @@ namespace Option
     inline Spanner::BFS_STRATEGY OptionParser::get_bfs_strategy()
     {
         return this->bfs_strategy;
+    }
+
+
+    inline int OptionParser::get_bfs_nb()
+    {
+        return this->bfs_nb;
     }
 
 

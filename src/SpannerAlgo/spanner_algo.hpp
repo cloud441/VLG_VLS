@@ -22,6 +22,6 @@ namespace Spanner
         COMMUNITY
     };
 
-    igraph_t *spanner_graph(igraph_t *g, BFS_STRATEGY strat);
+    igraph_t *spanner_graph(igraph_t *g, BFS_STRATEGY strat, int bfs_nb);
 
 } // namespace Spanner

@@ -78,6 +78,7 @@ namespace Spanner
 
     static std::vector<int> select_points_from_communities(igraph_t *g)
     {
+        std::cout << "\n\t\t_______________\n\n" << "Computing graph communities ...\n";
         // Compute communities
         igraph_integer_t communities_nb;
         igraph_vector_t membership;
@@ -103,6 +104,10 @@ namespace Spanner
             membership_index++;
         }
 
+        std::cout << "The GCC of the graph is composed by " << communities_nb
+            << " communities." << "\n\t\t_______________\n\n" << "Computing graph communities ..."
+            << std::endl;
+
         return select_pts;
     }
 
@@ -111,12 +116,13 @@ namespace Spanner
      ** select_bfs_points():
      **     params:  g -> model based graph for span building.
      **              strat -> strategy of points selection.
+     **              bfs_nb -> number of BFS done, this is the number of sources points.
      **
      **     Select vertices from the g graph according to a strat strategy defined
      **     in BFS_STRATEGY enum. Then call the according strategy selection.
      **/
 
-    static std::vector<int> select_bfs_points(igraph_t *g, BFS_STRATEGY strat)
+    static std::vector<int> select_bfs_points(igraph_t *g, BFS_STRATEGY strat, int bfs_nb)
     {
         std::vector<int> select_pts;
 
@@ -127,6 +133,7 @@ namespace Spanner
             break;
         case BFS_STRATEGY::COMMUNITY:
             select_pts = select_points_from_communities(g);
+            select_pts.resize(bfs_nb);
             break;
         }
 
@@ -154,6 +161,7 @@ namespace Spanner
     /**
      ** build_bfs_edges():
      **     params:  vparents -> list of parent vertice index according to index in list.
+     **              root_id -> vertice id of the BFS root.
      **
      **     Build the list of BFS edges following this structure:
      **         (parent_01, node_01, parent_02, node_02, ...)
@@ -223,19 +231,55 @@ namespace Spanner
         *bfs_edges = cleaned_edges;
     }
 
+
+    /**
+     ** pre_compute_bfs():
+     **     params:  g -> original graph where we will do BFS.
+     **              sources_pt -> list of vertice id considered as root in BFS.
+     **              orders_vec -> list of list each containing traversed vertices id in BFS order,
+     **                            for each root vertice.
+     **              fathers_vec -> list of list each containing traversed vertices parent id in BFS order,
+     **                             for each root vertice.
+     **              ranks_vec -> list of list each containing traversed vertices ranks in BFS (ie. depth value),
+     **                           for each root vertice.
+     **              dists_vec -> list of list each containing traversed vertices distance from the BFS root,
+     **                           for each root vertice.
+     **              bfs_nb -> number of BFS to do.
+     **
+     **     Compute all Breadth-First Searches from sources_pt and store results into parameters vectors.
+     **/
+
+    static void pre_compute_bfs(igraph_t *g, std::vector<int> sources_pt, std::vector<igraph_vector_t> *orders_vec, std::vector<igraph_vector_t> *fathers_vec, std::vector<igraph_vector_t> *ranks_vec, std::vector<igraph_vector_t> *dists_vec, int bfs_nb)
+    {
+        for (int i = 0; i < std::min(bfs_nb, static_cast<int>(sources_pt.size())); i++)
+        {
+            std::cout << "compute BFS nb: " << i << " ..." << std::endl;
+
+            // Initialize BFS storage vectors
+            igraph_vector_init(&((*orders_vec)[i]), 0);
+            igraph_vector_init(&((*fathers_vec)[i]), 0);
+            igraph_vector_init(&((*dists_vec)[i]), 0);
+            igraph_vector_init(&((*ranks_vec)[i]), 0);
+
+            igraph_bfs(g, sources_pt[i], NULL, IGRAPH_ALL, false, NULL, &((*orders_vec)[i]), &((*ranks_vec)[i]), &((*fathers_vec)[i]), NULL, NULL, &((*dists_vec)[i]), NULL, NULL);
+        }
+    }
+
+
     /**
      ** merge_bfs():
      **     params:  g -> spanner graph we want to complete with new BFS.
      **              bfs_vertices -> vertices of the new BFS to merge.
-     **              bfs_layers -> vertices layer numbers according to bfs_vertices order.
-     **              bfs_vparents -> parent of each edges into new BFS search.
+     **              bfs_dist -> vertices layer numbers according to bfs_vertices order.
+     **              bfs_father -> parent of each edges into new BFS search.
      **
+     **     Merge the BFS represented by the three last parameters into the g graph.
      **/
 
-    static void merge_bfs(igraph_t *g, igraph_vector_t bfs_vertices, igraph_vector_t bfs_layers, igraph_vector_t bfs_vparents)
+    static void merge_bfs(igraph_t *g, igraph_vector_t bfs_vertices, igraph_vector_t bfs_dist, igraph_vector_t bfs_father)
     {
         igraph_vector_t bfs_edges;
-        bfs_edges = build_bfs_edges(bfs_vparents, VECTOR(bfs_vertices)[0]);
+        bfs_edges = build_bfs_edges(bfs_father, VECTOR(bfs_vertices)[0]);
 
         // First merge case, just take all edges from first BFS
         if (!igraph_ecount(g))
@@ -245,8 +289,7 @@ namespace Spanner
         }
 
         // Merge BFS with current g graph
-        //        remove_similar_edges(g, &bfs_edges);
-
+        //remove_similar_edges(g, &bfs_edges);
         igraph_add_edges(g, &bfs_edges, 0);
     }
 
@@ -281,42 +324,18 @@ namespace Spanner
 
 
     /**
-     ** dijkstra_dist():
-     **     params:  g -> spanner graph we want to complete with new BFS.
-     **              from -> source vertice id of the required path.
-     **              to -> destination vertice id of the required path.
-     **
-     **     Compute the dijkstra distance between from vertice to to vertice.
-     **/
-
-    static int dijkstra_dist(igraph_t *g, int from, int to)
-    {
-        igraph_matrix_t dist_mat;
-        igraph_vs_t from_vs;
-        igraph_vs_t to_vs;
-
-        igraph_matrix_init(&dist_mat, 1, 1);
-        igraph_vs_1(&from_vs, from);
-        igraph_vs_1(&to_vs, to);
-
-        igraph_shortest_paths(g, &dist_mat, from_vs, to_vs, IGRAPH_ALL);
-
-        return igraph_matrix_e(&dist_mat, 0, 0);
-    }
-
-
-
-    /**
      ** bounding_eccentricities():
      **     params:  g -> spanner graph we want to complete with new BFS.
      **              sources_pt -> list of vertices index according to BFS sources
-     **                             points selection
+     **                            points selection
+     **              dists_vec -> list of vertices distance from BFS roots.
+     **              ranks_vec -> list of vertices ranks in associated BFS roots.
      **
      **     Return the list of all eccentricities associated to each vertices in g graph.
      **     The algorithm is based on Takes & Koster implementation.
      **/
 
-    static std::vector<int> bounding_eccentricities(igraph_t *g, std::vector<int> sources_pt)
+    static std::vector<int> bounding_eccentricities(igraph_t *g, std::vector<int> sources_pt, std::vector<igraph_vector_t> dists_vec, std::vector<igraph_vector_t> ranks_vec)
     {
         int vertices_nb = igraph_vcount(g);
         std::vector<int> g_vertices = std::vector<int>(vertices_nb);
@@ -338,6 +357,8 @@ namespace Spanner
 
         while (!g_vertices.empty())
         {
+            std::cout << g_vertices.size() << std::endl;
+
             // select a based vertice to compute eccentricity, according to BFS strategy (communities, etc ...)
             cur_vertice = first_existing_source(g_vertices, sources_pt, &source_pt_index);
             igraph_vs_t ecc_help_vs;
@@ -350,16 +371,19 @@ namespace Spanner
             igraph_eccentricity(g, &ecc_help_results, ecc_help_vs, IGRAPH_ALL);
             eps[cur_vertice] = VECTOR(ecc_help_results)[0];
 
+
             for (int v : g_vertices)
             {
-                eps_l[cur_vertice] = std::max(eps_l[cur_vertice], std::max(eps[v] - dijkstra_dist(g, v, cur_vertice), dijkstra_dist(g, v, cur_vertice)));
-                eps_u[cur_vertice] = std::min(eps_u[cur_vertice], eps[v] - dijkstra_dist(g, v, cur_vertice));
+                int v_bfs_rank = VECTOR(ranks_vec[source_pt_index])[v];
+                int dist_v_cur = VECTOR(dists_vec[source_pt_index])[v_bfs_rank];
+                eps_l[cur_vertice] = std::max(eps_l[cur_vertice], std::max(eps[v] - dist_v_cur, dist_v_cur));
+                eps_u[cur_vertice] = std::min(eps_u[cur_vertice], eps[v] + dist_v_cur);
 
                 if (eps_l[cur_vertice] == eps_u[cur_vertice])
                 {
                     eps[cur_vertice] = eps_l[cur_vertice];
                     // erase cur_vertice of the vertices vectors
-                    g_vertices.erase(std::find(g_vertices.begin(), g_vertices.end(), cur_vertice));
+                    g_vertices.erase(std::find(g_vertices.begin(), g_vertices.end(), v));
                 }
             }
         }
@@ -371,57 +395,63 @@ namespace Spanner
     /**
      ** spanner_graph():
      **     params:  g -> model based graph for span building.
+     **              strat -> BFS root selection strategy.
+     **              bfs_nb -> number of BFS done.
      **
      **     The current algorithm select some points of the graph to perform BFS (Breadth-first search)
      **     and merge these output graphs. These operations result on a light sparse version of the graph,
      **     this is the graph spanner.
      **/
 
-    igraph_t *spanner_graph(igraph_t *g, BFS_STRATEGY strat)
+    igraph_t *spanner_graph(igraph_t *g, BFS_STRATEGY strat, int bfs_nb)
     {
-        // random selection of source points
-        std::vector<int> sources_pt = select_bfs_points(g, strat);
+        std::cout << "\n\t_______________________________\n\n" << "Computing very light spanner ...\n";
+
+        // selection of source points for BFS
+        std::vector<int> sources_pt = select_bfs_points(g, strat, bfs_nb);
 
         // Initialize span with all edges but no vertices
         igraph_t *span = initialize_spanner(g);
 
-        // Initialize BFS storage vectors
-        igraph_vector_t bfs_vertices;
-        igraph_vector_t bfs_layers;
-        igraph_vector_t bfs_vparents;
+        // Initialize eccentricity vector
+        //std::vector<int>  ecc_vector;
 
-        igraph_vector_init(&bfs_vertices, 0);
-        igraph_vector_init(&bfs_layers, 0);
-        igraph_vector_init(&bfs_vparents, 0);
+        // Pre-compute bfs in order to have distance for boundaries eccentricities algorithm
+        std::vector<igraph_vector_t> orders_vec = std::vector<igraph_vector_t>(sources_pt.size());
+        std::vector<igraph_vector_t> fathers_vec = std::vector<igraph_vector_t>(sources_pt.size());
+        std::vector<igraph_vector_t> dists_vec = std::vector<igraph_vector_t>(sources_pt.size());
+        std::vector<igraph_vector_t> ranks_vec = std::vector<igraph_vector_t>(sources_pt.size());
 
-        std::vector<int>  ecc_vector;
+        pre_compute_bfs(g, sources_pt, &orders_vec, &fathers_vec, &ranks_vec, &dists_vec, bfs_nb);
 
         /* for each source points, compute BFS and merge it to span, compute difference of up/down bounding excentricity,
-           compute mean value and variance and choose a stop condition. */
+           compute mean value and variance. */
         for (int i = 0 ; i < sources_pt.size(); i++)
         {
-            std::cout << "Spanner building: BFS number " << i << " is merging ..." << '\n';
-            igraph_bfs_simple(g, sources_pt[i], IGRAPH_ALL, &bfs_vertices, &bfs_layers, &bfs_vparents);
+            std::cout << "\nSpanner building: BFS number " << i << " is merging ..." << '\n';
 
-            if (0.8 * igraph_ecount(g) < (igraph_ecount(span) + (igraph_vector_size(&bfs_vparents) * 2)))
+            if ((0.8 * igraph_ecount(g)) < (igraph_ecount(span) + (igraph_vector_size(&(fathers_vec[i])) * 2)))
             {
                 std::cout << "Stopping condition is reached." << std::endl;
                 break;
             }
 
-            merge_bfs(span, bfs_vertices, bfs_layers, bfs_vparents);
+            merge_bfs(span, orders_vec[i], dists_vec[i], fathers_vec[i]);
             std::cout << "Spanner is composed by: " << igraph_ecount(span) << " edges.\n" 
                 << "merge is done." << '\n';
 
-            std::cout << "Computing bounding eccentricities ..." << '\n';
-            ecc_vector = bounding_eccentricities(g, sources_pt);
-            std::cout << "mean of eccentricities of the spanner is: "  << vector_mean(ecc_vector)<< '\n'
-                << "variance of eccentricities of the spanner is: " << vector_var(ecc_vector) << '\n';
+            //std::cout << "Computing bounding eccentricities ..." << '\n';
+            //ecc_vector = bounding_eccentricities(g, sources_pt, dists_vec, ranks_vec);
+            //std::cout << "mean of eccentricities of the spanner is: "  << vector_mean(ecc_vector)<< '\n'
+            //    << "variance of eccentricities of the spanner is: " << vector_var(ecc_vector) << '\n';
         }
 
 
-        std::cout << "Final very light spanner estimated diameter (by eccentricities maximum) is: "
-            << *(std::max_element(ecc_vector.begin(), ecc_vector.end())) << std::endl;
+        //std::cout << "Final very light spanner estimated diameter (by eccentricities maximum) is: "
+        //    << *(std::max_element(ecc_vector.begin(), ecc_vector.end())) << std::endl;
+
+        std::cout << "\nComputing very light spanner done." << std::endl;
+
         return span;
     }
 

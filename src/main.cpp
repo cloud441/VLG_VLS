@@ -4,6 +4,17 @@
 #include "options.hpp"
 #include "graph_manager.hpp"
 
+static void print_results(igraph_t *graph, igraph_t *span, std::string filename)
+{
+    std::cout << "\n\t_______________________________\n\n" << "Final results of the Spanner on graph: "
+        << filename << "\n\n" << "original Greatest component (GCC) graph size:\n"
+        << "\tnumber of vertices: " << igraph_vcount(graph) << '\n'
+        << "\tnumber of edges: " << igraph_ecount(graph) << '\n'
+        << "\nVery light spanner graph size:\n"
+        << "\tnumber of vertices: " << igraph_vcount(span) << '\n'
+        << "\tnumber of edges: " << igraph_ecount(span) << std::endl;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -21,13 +32,10 @@ int main(int argc, char **argv)
     //igraph_t *sub_g = g_manager.extract_subgraph(0, 10000);
 
     // Create spanner of the graph:
-//    std::cout << "GCC vertices number: " << igraph_vcount(gcc) << '\n'
-//        << "GCC edges number: " << igraph_ecount(gcc) << std::endl;
+    igraph_t *span = g_manager.compute_spanner(Graph::GraphSource::GCC, op_parser.get_bfs_strategy(), op_parser.get_bfs_nb());
 
-    igraph_t *span = g_manager.compute_spanner(Graph::GraphSource::GCC, op_parser.get_bfs_strategy());
-
-//    std::cout << "\nSpan vertices number: " << igraph_vcount(span) << '\n'
-//        << "Span edges number: " << igraph_ecount(span) << std::endl;
+    // Print results:
+    print_results(gcc, span, op_parser.get_filename());
 
     return 0;
 }

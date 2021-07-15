@@ -50,6 +50,16 @@ namespace Option
                 strategy_switch(std::string(argv[i]));
             }
 
+            else if (std::string(argv[i]) == "--bfs-number")
+            {
+                i++;
+
+                if (i == argc)
+                    print_help();
+
+                this->bfs_nb = std::stoi(std::string(argv[i]));
+            }
+
             else if (argv[i][0] == '-')
             {
                 std::cerr << "Error: unrecognize option: " << argv[i] << std::endl;
@@ -95,6 +105,7 @@ namespace Option
             << "\tPossible strategies:\n"
             << "\t\trandom:\t\tselect some source points randomly\n"
             << "\t\tcommunity:\tselect one source point by community in graph\n"
+            << "--bfs-number <nb>:\t\tspecify the number of BFS to do during spanner computing."
             << std::endl;
 
         exit(0);
