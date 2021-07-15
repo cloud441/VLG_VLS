@@ -5,6 +5,46 @@ namespace Spanner
 {
 
     /**
+     ** vector_mean():
+     **     params:  vec -> vector to compute the mean value.
+     **
+     **     Compute mean value of int vector.
+     **/
+
+    static float vector_mean(std::vector<int> vec)
+    {
+        float mean = 0.0f;
+
+        if (!vec.empty())
+            mean = std::accumulate(vec.begin(), vec.end(), 0.0) / vec.size();
+
+        return mean;
+    }
+
+
+    /**
+     ** vector_var():
+     **     params:  vec -> vector to compute the variance value.
+     **
+     **     Compute variance value of int vector.
+     **/
+
+    static float vector_var(std::vector<int> vec)
+    {
+        std::vector<float> vec_f = std::vector<float>(vec.begin(), vec.end());
+        float mean = vector_mean(vec);
+        float variance = 0.0f;
+
+        std::for_each(vec_f.begin(), vec_f.end(), [mean](float& elt) { elt -= mean;});
+
+        if (!vec_f.empty())
+            variance = std::inner_product(vec_f.begin(), vec_f.end(), vec_f.begin(), 0.0) / vec.size();
+
+        return variance;
+    }
+
+
+    /**
      ** select_points_randomly():
      **     params:  g -> model based graph for span building.
      **
@@ -212,6 +252,35 @@ namespace Spanner
 
 
     /**
+     ** first_existing_source():
+     **     params:  g_vertices -> spanner graph we want to complete with new BFS.
+     **              sources_pt -> list of sources vertices from BFS strategy.
+     **              index_in_sources_pt -> index of last selected point vertice.
+     **
+     **     Find the first source vertice index of sources_pt that is unused and is not removed of
+     **     g_vertices during last function calls. Unused means that we never return this index by
+     **     this function during last calls, and not removed means that was not erased by computing
+     **     bounding eccentricities.
+     **     In fact, this function returns the required vertice index and increments the index_in_sources_pt.
+     **
+     **/
+
+    static int first_existing_source(std::vector<int> g_vertices, std::vector<int> sources_pt, int *index_in_sources_pt)
+    {
+        // we not use the last returned value
+        (*index_in_sources_pt)++;
+
+        std::vector<int>::iterator res_it;
+
+        while ((res_it = std::find(g_vertices.begin(), g_vertices.end(), sources_pt[*index_in_sources_pt])) == g_vertices.end())
+            (*index_in_sources_pt)++;
+
+        // return value store into res_it iterator (ie. the first available source vertice index)
+        return *res_it;
+    }
+
+
+    /**
      ** dijkstra_dist():
      **     params:  g -> spanner graph we want to complete with new BFS.
      **              from -> source vertice id of the required path.
@@ -240,12 +309,14 @@ namespace Spanner
     /**
      ** bounding_eccentricities():
      **     params:  g -> spanner graph we want to complete with new BFS.
+     **              sources_pt -> list of vertices index according to BFS sources
+     **                             points selection
      **
      **     Return the list of all eccentricities associated to each vertices in g graph.
      **     The algorithm is based on Takes & Koster implementation.
      **/
 
-    static std::vector<int> bounding_eccentricities(igraph_t *g)
+    static std::vector<int> bounding_eccentricities(igraph_t *g, std::vector<int> sources_pt)
     {
         int vertices_nb = igraph_vcount(g);
         std::vector<int> g_vertices = std::vector<int>(vertices_nb);
@@ -261,21 +332,27 @@ namespace Spanner
         std::fill(eps_l.begin(), eps_l.end(), std::numeric_limits<int>::min());
         std::fill(eps_u.begin(), eps_u.end(), std::numeric_limits<int>::max());
 
+        // define index of source vertice selected to compute eccentricity
+        int source_pt_index = 0;
+        int cur_vertice;
+
         while (!g_vertices.empty())
         {
-            int cur_vertice = g_vertices[0];
+            // select a based vertice to compute eccentricity, according to BFS strategy (communities, etc ...)
+            cur_vertice = first_existing_source(g_vertices, sources_pt, &source_pt_index);
             igraph_vs_t ecc_help_vs;
             igraph_vs_1(&ecc_help_vs, cur_vertice);
 
 
             // compute eccentricity of cur_vector
             igraph_vector_t ecc_help_results;
+            igraph_vector_init(&ecc_help_results, 0);
             igraph_eccentricity(g, &ecc_help_results, ecc_help_vs, IGRAPH_ALL);
             eps[cur_vertice] = VECTOR(ecc_help_results)[0];
 
             for (int v : g_vertices)
             {
-                eps_l[cur_vertice] = std::max(eps_l[v], std::max(eps[cur_vertice] - dijkstra_dist(g, v, cur_vertice), dijkstra_dist(g, v, cur_vertice)));
+                eps_l[cur_vertice] = std::max(eps_l[cur_vertice], std::max(eps[v] - dijkstra_dist(g, v, cur_vertice), dijkstra_dist(g, v, cur_vertice)));
                 eps_u[cur_vertice] = std::min(eps_u[cur_vertice], eps[v] - dijkstra_dist(g, v, cur_vertice));
 
                 if (eps_l[cur_vertice] == eps_u[cur_vertice])
@@ -317,6 +394,8 @@ namespace Spanner
         igraph_vector_init(&bfs_layers, 0);
         igraph_vector_init(&bfs_vparents, 0);
 
+        std::vector<int>  ecc_vector;
+
         /* for each source points, compute BFS and merge it to span, compute difference of up/down bounding excentricity,
            compute mean value and variance and choose a stop condition. */
         for (int i = 0 ; i < sources_pt.size(); i++)
@@ -324,7 +403,7 @@ namespace Spanner
             std::cout << "Spanner building: BFS number " << i << " is merging ..." << '\n';
             igraph_bfs_simple(g, sources_pt[i], IGRAPH_ALL, &bfs_vertices, &bfs_layers, &bfs_vparents);
 
-            if (igraph_ecount(g) < (igraph_ecount(span) + (igraph_vector_size(&bfs_vparents) * 2)))
+            if (0.8 * igraph_ecount(g) < (igraph_ecount(span) + (igraph_vector_size(&bfs_vparents) * 2)))
             {
                 std::cout << "Stopping condition is reached." << std::endl;
                 break;
@@ -332,9 +411,17 @@ namespace Spanner
 
             merge_bfs(span, bfs_vertices, bfs_layers, bfs_vparents);
             std::cout << "Spanner is composed by: " << igraph_ecount(span) << " edges.\n" 
-                << "Done." << std::endl;
+                << "merge is done." << '\n';
+
+            std::cout << "Computing bounding eccentricities ..." << '\n';
+            ecc_vector = bounding_eccentricities(g, sources_pt);
+            std::cout << "mean of eccentricities of the spanner is: "  << vector_mean(ecc_vector)<< '\n'
+                << "variance of eccentricities of the spanner is: " << vector_var(ecc_vector) << '\n';
         }
 
+
+        std::cout << "Final very light spanner estimated diameter (by eccentricities maximum) is: "
+            << *(std::max_element(ecc_vector.begin(), ecc_vector.end())) << std::endl;
         return span;
     }
 
